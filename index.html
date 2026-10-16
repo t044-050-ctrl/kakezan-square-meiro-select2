@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>かけ算スクエアめいろ</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Kiwi Maru & Fredoka -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Kiwi+Maru:wght@400;500;700&family=Fredoka:wght@600;700&display=swap" rel="stylesheet">
+    <!-- html2canvas for Screenshot -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- Canvas Confetti for Victory Effects -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+    <style>
+        :root {
+            --panel-size: min(52px, 12vw);
+            --gap-size: min(8px, 2vw);
+            --border-radius: 16px;
+            --main-bg: #f0f9ff;
+            --panel-bg: #a7f3d0;
+            --panel-cleared-bg: #fde047;
+            --panel-current-bg: #fde047;
+            --panel-text: #1f2937;
+            --button-blue: #3b82f6;
+            --button-blue-hover: #2563eb;
+            --dan-button-bg: #f8fafc;
+            --dan-button-border: #cbd5e1;
+        }
+
+        body {
+            font-family: 'Kiwi Maru', serif;
+            background-color: #e0f2fe;
+            background-image: radial-gradient(#bae6fd 1.5px, transparent 1.5px);
+            background-size: 24px 24px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            margin: 0;
+            padding: 16px;
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+            touch-action: manipulation;
+            color: var(--panel-text);
+        }
+
+        /* Card Container Styles */
+        .game-card {
+            position: relative;
+            background-color: #ffffff;
+            border-radius: 24px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+            padding: 24px 20px 20px 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            max-width: 440px;
+            border: 4px solid #bae6fd;
+        }
+
+        /* --- Start Screen Styling --- */
+        .dan-row {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            width: 100%;
+        }
+
+        .dan-button {
+            font-family: 'Kiwi Maru', serif;
+            font-size: 1.25rem;
+            font-weight: 700;
+            width: 46px;
+            height: 46px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border-radius: 12px;
+            border: 2px solid var(--dan-button-border);
+            background-color: var(--dan-button-bg);
+            color: #334155;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+            box-shadow: 0 2px 0px #cbd5e1;
+        }
+
+        .dan-button:hover {
+            transform: translateY(-2px);
+            border-color: #94a3b8;
+            background-color: #f1f5f9;
+        }
+
+        .dan-button.active {
+            background-color: #fde047;
+            border-color: #f59e0b;
+            color: #854d0e;
+            box-shadow: 0 3px 0px #d97706;
+            transform: scale(1.08);
+        }
+
+        /* --- Maze Panel Styling --- */
+        #maze-container {
+            display: grid;
+            grid-template-columns: repeat(6, var(--panel-size));
+            grid-template-rows: repeat(6, var(--panel-size));
+            gap: var(--gap-size);
+            perspective: 800px;
+            margin-top: 12px;
+            margin-bottom: 12px;
+        }
+
+        .panel {
+            background-color: var(--panel-bg);
+            border-radius: var(--border-radius);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: clamp(1rem, 3.5vw, 1.35rem);
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.3s ease, box-shadow 0.2s ease;
+            box-shadow: 0 4px 0px #059669;
+            color: var(--panel-text);
+            border: 2px solid #34d399;
+            position: relative;
+        }
+
+        .panel:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 0px #059669;
+        }
+
+        .panel:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 0px #059669;
+        }
+
+        .panel.cleared {
+            background-color: var(--panel-cleared-bg);
+            border-color: #f59e0b;
+            box-shadow: 0 4px 0px #d97706;
+            cursor: default;
+        }
+
+        .panel.current {
+            background-color: var(--panel-current-bg);
+            border-color: #f59e0b;
+            transform: scale(1.08) translateZ(15px);
+            box-shadow: 0 8px 15px rgba(245, 158, 11, 0.4);
+            z-index: 10;
+            animation: pulse-glow 1.5s infinite alternate;
+        }
+
+        @keyframes pulse-glow {
+            0% { box-shadow: 0 0 10px rgba(245, 158, 11, 0.5); }
+            100% { box-shadow: 0 0 20px rgba(245, 158, 11, 0.9); }
+        }
+
+        .panel.expression-panel {
+            font-size: clamp(0.8rem, 2.8vw, 1.1rem);
+            line-height: 1.2;
+            text-align: center;
+            word-break: break-word;
+        }
+
+        .panel.shake {
+            animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+            border-color: #ef4444 !important;
+            background-color: #fca5a5 !important;
+            box-shadow: 0 4px 0px #dc2626 !important;
+        }
+
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-2px, 0, 0); }
+            20%, 80% { transform: translate3d(4px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-6px, 0, 0); }
+            40%, 60% { transform: translate3d(6px, 0, 0); }
+        }
+
+        #time-bonus-animation {
+            position: absolute;
+            background-color: #fde047;
+            color: #854d0e;
+            border: 2px solid #eab308;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-weight: 800;
+            font-size: 1.1rem;
+            z-index: 110;
+            opacity: 0;
+            pointer-events: none;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+            transition: top 0.7s cubic-bezier(0.25, 1, 0.5, 1), left 0.7s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.7s ease-in-out;
+        }
+
+        #timer.flash {
+            animation: flash-animation 0.6s;
+        }
+
+        @keyframes flash-animation {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.3); color: #eab308; }
+        }
+
+        .sound-toggle {
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .sound-toggle:hover {
+            transform: scale(1.1);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Stage Overlay -->
+    <div id="stage-overlay" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex flex-col justify-center items-center z-50 text-white opacity-0 pointer-events-none transition-opacity duration-500">
+        <div id="stage-message" class="text-4xl md:text-6xl font-extrabold text-yellow-300 drop-shadow-lg tracking-wider"></div>
+    </div>
+
+    <!-- Time's Up Overlay -->
+    <div id="timesup-overlay" class="fixed inset-0 bg-slate-900/85 backdrop-blur-sm hidden flex-col justify-center items-center z-40 text-white p-4">
+        <div id="timesup-content" class="bg-white text-slate-800 rounded-3xl p-8 max-w-sm w-full shadow-2xl border-4 border-sky-200 flex flex-col items-center gap-6 text-center">
+            <div id="timesup-main-content" class="flex flex-col items-center gap-4 w-full">
+                <div id="timesup-message" class="text-4xl font-extrabold text-rose-500 flex items-center gap-2">
+                    ⏱️ <span>タイムオーバー</span>
+                </div>
+                <div id="final-score-wrapper" class="w-full my-2"></div>
+            </div>
+            <div class="flex items-center gap-3">
+                <button id="screenshot-button" title="結果を保存" class="bg-slate-200 hover:bg-slate-300 text-slate-700 p-3 rounded-full transition-all shadow-md active:scale-95">
+                    <svg class="w-6 h-6 fill-current" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 4h3l2-2h6l2 2h3v16H4V4zm8 13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-3.2-5c0 1.77 1.43 3.2 3.2 3.2s3.2-1.43 3.2-3.2-1.43-3.2-3.2-3.2-3.2 1.43-3.2 3.2z"/></svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Start Screen -->
+    <div id="start-screen" class="game-card">
+        <h1 id="start-title" class="text-3xl font-extrabold text-emerald-800 my-2 text-center">かけ算スクエアめいろ</h1>
+        <p id="start-description" class="text-base text-slate-600 font-bold mt-1 mb-5 text-center">
+            えらんだ だんの 中から もんだいが 出ます。
+        </p>
+
+        <div id="dan-selector" class="flex flex-col gap-3 mb-4 w-full items-center">
+            <!-- Dynamically populated rows with 1-9 buttons -->
+        </div>
+
+        <!-- Quick selection helper buttons -->
+        <div class="flex gap-3 mb-6 w-full justify-center text-sm font-bold">
+            <button id="select-all-btn" class="bg-sky-100 hover:bg-sky-200 text-sky-700 px-3 py-1 rounded-full border border-sky-300 transition-colors">
+                ぜんぶ選ぶ
+            </button>
+            <button id="deselect-all-btn" class="bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 py-1 rounded-full border border-slate-300 transition-colors">
+                クリア
+            </button>
+        </div>
+
+        <!-- Non-intrusive error alert container -->
+        <div id="start-warning" class="hidden text-rose-600 font-extrabold text-sm mb-3 bg-rose-50 border border-rose-200 px-3 py-1.5 rounded-xl animate-bounce">
+            ⚠️ すくなくとも １つの だんを えらんでください。
+        </div>
+
+        <button id="start-button" class="bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white font-black py-3 px-12 rounded-2xl shadow-lg hover:shadow-xl transition-all active:scale-95 text-xl tracking-wider">
+            はじめる
+        </button>
+    </div>
+
+    <!-- Game Screen -->
+    <div id="game-screen" class="hidden">
+        <div class="game-card">
+            <!-- Top Header Info -->
+            <div class="w-full flex justify-between items-center mb-2 px-1">
+                <div id="stage-info" class="text-base md:text-lg font-bold text-sky-600 bg-sky-50 px-3 py-1 rounded-full border border-sky-200 shadow-sm">
+                    第1ステージ 1ゲーム
+                </div>
+                <button id="sound-btn" class="sound-toggle bg-slate-100 hover:bg-slate-200 text-slate-600 p-2 rounded-full border border-slate-300 text-sm flex items-center justify-center">
+                    🔊
+                </button>
+            </div>
+
+            <!-- Maze Grid -->
+            <div id="maze-container"></div>
+
+            <!-- Score & Status -->
+            <div id="score-wrapper" class="flex items-center justify-center text-xl font-bold text-slate-700 mt-2">
+                <span>とく点</span>
+                <div id="score-container" class="border-2 border-sky-400 px-4 py-1 rounded-xl bg-sky-50 shadow-inner min-w-[90px] text-center mx-2 text-sky-600 font-extrabold text-2xl">
+                    <span id="score">0</span>
+                </div>
+                <span>点</span>
+            </div>
+
+            <!-- Message & Timer Area -->
+            <div id="message-timer-wrapper" class="flex items-center justify-between w-full mt-3 px-2 min-h-[2.5rem]">
+                <p id="message" class="text-base font-extrabold min-h-[1.5em] transition-all"></p>
+                <div id="timer" class="font-mono text-2xl font-black text-sky-500 bg-sky-50 px-3 py-1 rounded-lg border border-sky-200 ml-auto">3:00</div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div id="button-wrapper" class="flex gap-3 mt-4">
+                <button id="reset-button" class="bg-sky-500 hover:bg-sky-600 active:bg-sky-700 text-white font-bold py-2.5 px-5 rounded-2xl shadow-md transition-all hover:shadow-lg active:scale-95 text-base">
+                    もう一度ちょうせん
+                </button>
+                <button id="back-to-start-button" class="bg-slate-200 hover:bg-slate-300 active:bg-slate-400 text-slate-700 font-bold py-2.5 px-4 rounded-2xl shadow-sm transition-all active:scale-95 text-base">
+                    だんをえらびなおす
+                </button>
+            </div>
+
+            <!-- Time Bonus Animated Popup -->
+            <div id="time-bonus-animation">+15びょう</div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Prevent context menu and double-tap callouts/popups
+            document.addEventListener('contextmenu', (e) => e.preventDefault());
+            document.addEventListener('dblclick', (e) => e.preventDefault());
+
+            // Audio Effects with Web Audio API
+            let audioEnabled = true;
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            let audioCtx = null;
+
+            function initAudio() {
+                if (!audioCtx) {
+                    audioCtx = new AudioContext();
+                }
+                if (audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+            }
+
+            function playSound(type) {
+                if (!audioEnabled) return;
+                try {
+                    initAudio();
+                    const now = audioCtx.currentTime;
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+
+                    if (type === 'correct') {
+                        osc.type = 'sine';
+                        osc.frequency.setValueAtTime(523.25, now); // C5
+                        osc.frequency.setValueAtTime(659.25, now + 0.08); // E5
+                        osc.frequency.setValueAtTime(783.99, now + 0.16); // G5
+                        gain.gain.setValueAtTime(0.15, now);
+                        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+                        osc.start(now);
+                        osc.stop(now + 0.35);
+                    } else if (type === 'wrong') {
+                        osc.type = 'sawtooth';
+                        osc.frequency.setValueAtTime(180, now);
+                        osc.frequency.setValueAtTime(130, now + 0.1);
+                        gain.gain.setValueAtTime(0.2, now);
+                        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+                        osc.start(now);
+                        osc.stop(now + 0.3);
+                    } else if (type === 'goal') {
+                        const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+                        notes.forEach((freq, idx) => {
+                            const o = audioCtx.createOscillator();
+                            const g = audioCtx.createGain();
+                            o.connect(g);
+                            g.connect(audioCtx.destination);
+                            o.type = 'triangle';
+                            o.frequency.setValueAtTime(freq, now + idx * 0.1);
+                            g.gain.setValueAtTime(0.2, now + idx * 0.1);
+                            g.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.1 + 0.3);
+                            o.start(now + idx * 0.1);
+                            o.stop(now + idx * 0.1 + 0.3);
+                        });
+                    } else if (type === 'gameover') {
+                        osc.type = 'sawtooth';
+                        osc.frequency.setValueAtTime(300, now);
+                        osc.frequency.linearRampToValueAtTime(100, now + 0.5);
+                        gain.gain.setValueAtTime(0.2, now);
+                        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+                        osc.start(now);
+                        osc.stop(now + 0.5);
+                    }
+                } catch(e) {
+                    console.log("Audio play error", e);
+                }
+            }
+
+            const soundBtn = document.getElementById('sound-btn');
+            soundBtn.addEventListener('click', () => {
+                audioEnabled = !audioEnabled;
+                soundBtn.textContent = audioEnabled ? '🔊' : '🔇';
+            });
+
+            // Element References
+            const startScreen = document.getElementById('start-screen');
+            const gameScreen = document.getElementById('game-screen');
+            const danSelector = document.getElementById('dan-selector');
+            const startButton = document.getElementById('start-button');
+            const startWarning = document.getElementById('start-warning');
+            const selectAllBtn = document.getElementById('select-all-btn');
+            const deselectAllBtn = document.getElementById('deselect-all-btn');
+
+            const mazeContainer = document.getElementById('maze-container');
+            const messageEl = document.getElementById('message');
+            const resetButton = document.getElementById('reset-button');
+            const backToStartButton = document.getElementById('back-to-start-button');
+            const scoreEl = document.getElementById('score');
+            const timerEl = document.getElementById('timer');
+            const timesupOverlay = document.getElementById('timesup-overlay');
+            const finalScoreWrapper = document.getElementById('final-score-wrapper');
+            const gameContainer = document.querySelector('#game-screen .game-card');
+            const stageOverlay = document.getElementById('stage-overlay');
+            const stageMessage = document.getElementById('stage-message');
+            const screenshotButton = document.getElementById('screenshot-button');
+            const stageInfo = document.getElementById('stage-info');
+            const gridSize = 6;
+
+            let pathAndQuestions = [];
+            let mazeData = [];
+            let currentStep = 0;
+            let score = 0;
+            let timerId = null;
+            let timeLeft = 180;
+            let isTimerRunning = false;
+            let gamesCompleted = 0;
+            let stageCount = 1;
+            let selectedDan = [];
+
+            // Render Dan buttons (1 to 9) in rows
+            const row1 = document.createElement('div');
+            row1.classList.add('dan-row');
+            const row2 = document.createElement('div');
+            row2.classList.add('dan-row');
+
+            for (let i = 1; i <= 9; i++) {
+                const danButton = document.createElement('button');
+                danButton.classList.add('dan-button');
+                danButton.dataset.dan = i;
+                danButton.textContent = i;
+                
+                danButton.addEventListener('click', () => {
+                    danButton.classList.toggle('active');
+                    startWarning.classList.add('hidden');
+                });
+
+                if (i <= 5) {
+                    row1.appendChild(danButton);
+                } else {
+                    row2.appendChild(danButton);
+                }
+            }
+            danSelector.appendChild(row1);
+            danSelector.appendChild(row2);
+
+            selectAllBtn.addEventListener('click', () => {
+                document.querySelectorAll('.dan-button').forEach(btn => btn.classList.add('active'));
+                startWarning.classList.add('hidden');
+            });
+
+            deselectAllBtn.addEventListener('click', () => {
+                document.querySelectorAll('.dan-button').forEach(btn => btn.classList.remove('active'));
+            });
+
+            // Start Game button logic
+            startButton.addEventListener('click', () => {
+                selectedDan = [];
+                const activeButtons = document.querySelectorAll('.dan-button.active');
+                activeButtons.forEach(button => {
+                    selectedDan.push(parseInt(button.dataset.dan));
+                });
+
+                if (selectedDan.length === 0) {
+                    startWarning.classList.remove('hidden');
+                    return;
+                }
+
+                startWarning.classList.add('hidden');
+                startScreen.classList.add('hidden');
+                gameScreen.classList.remove('hidden');
+                initGame(true);
+            });
+
+            backToStartButton.addEventListener('click', () => {
+                if (timerId) clearInterval(timerId);
+                isTimerRunning = false;
+                timesupOverlay.style.display = 'none';
+                timesupOverlay.classList.add('hidden');
+                gameScreen.classList.add('hidden');
+                startScreen.classList.remove('hidden');
+            });
+
+            // Generate Random Path & Questions using selected Dans
+            function generateRandomPathAndQuestions() {
+                let path = [];
+
+                function findRandomPath() {
+                    const start = [5, 5];
+                    const goal = [0, 0];
+                    const currentPath = [];
+                    const visited = new Set();
+                    let success = false;
+
+                    function dfs(r, c) {
+                        if (success) return;
+                        const posKey = `${r},${c}`;
+                        visited.add(posKey);
+                        currentPath.push([r, c]);
+
+                        if (r === goal[0] && c === goal[1]) {
+                            if (currentPath.length >= 15 && currentPath.length <= 22) {
+                                path = [...currentPath];
+                                success = true;
+                            }
+                            return;
+                        }
+
+                        const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+                        for (let i = directions.length - 1; i > 0; i--) {
+                            const j = Math.floor(Math.random() * (i + 1));
+                            [directions[i], directions[j]] = [directions[j], directions[i]];
+                        }
+
+                        for (const [dr, dc] of directions) {
+                            if (success) return;
+                            const newR = r + dr;
+                            const newC = c + dc;
+                            const newPosKey = `${newR},${newC}`;
+                            if (newR >= 0 && newR < gridSize && newC >= 0 && newC < gridSize && !visited.has(newPosKey)) {
+                                dfs(newR, newC);
+                            }
+                        }
+                        currentPath.pop();
+                    }
+                    dfs(start[0], start[1]);
+                }
+
+                let attempts = 0;
+                while (path.length === 0 && attempts < 50) {
+                    findRandomPath();
+                    attempts++;
+                }
+
+                if (path.length === 0) {
+                    const moves = Array(5).fill('up').concat(Array(5).fill('left'));
+                    for (let i = moves.length - 1; i > 0; i--) {
+                        const j = Math.floor(Math.random() * (i + 1));
+                        [moves[i], moves[j]] = [moves[j], moves[i]];
+                    }
+                    path = [[5, 5]];
+                    let currentPos = [5, 5];
+                    moves.forEach(move => {
+                        let [r, c] = currentPos;
+                        if (move === 'up') r--;
+                        else if (move === 'left') c--;
+                        currentPos = [r, c];
+                        path.push(currentPos);
+                    });
+                }
+
+                const questions = [];
+                const usedAnswers = new Set();
+
+                for (let i = 0; i < path.length - 1; i++) {
+                    let num1, num2, answer, question;
+                    let answerAttempts = 0;
+                    do {
+                        num1 = selectedDan[Math.floor(Math.random() * selectedDan.length)];
+                        num2 = Math.floor(Math.random() * 9) + 1;
+                        answer = num1 * num2;
+                        question = `${num1} × ${num2}`;
+                        answerAttempts++;
+                    } while (usedAnswers.has(answer) && answerAttempts < 25);
+
+                    usedAnswers.add(answer);
+
+                    questions.push({
+                        position: path[i],
+                        question: question,
+                        answer: answer,
+                        nextPosition: path[i + 1]
+                    });
+                }
+
+                questions.push({
+                    position: path[path.length - 1],
+                    question: "ゴール!",
+                    answer: null,
+                    nextPosition: null
+                });
+
+                return questions;
+            }
+
+            function initGame(isManualReset = true) {
+                currentStep = 0;
+                if (isManualReset) {
+                    score = 0;
+                    gamesCompleted = 0;
+                    stageCount = 1;
+                    timesupOverlay.style.display = 'none';
+                    timesupOverlay.classList.add('hidden');
+                    const timesupMainContent = document.getElementById('timesup-main-content');
+                    const buttonWrapper = document.getElementById('button-wrapper');
+                    if (timesupMainContent.contains(resetButton)) {
+                        timesupMainContent.removeChild(resetButton);
+                        buttonWrapper.insertBefore(resetButton, buttonWrapper.firstChild);
+                    }
+                }
+                updateScoreDisplay();
+                updateStageDisplay();
+                mazeContainer.innerHTML = '';
+                mazeContainer.style.pointerEvents = 'auto';
+                messageEl.textContent = ' ';
+
+                if (isManualReset) {
+                    if (timerId) clearInterval(timerId);
+                    isTimerRunning = false;
+                    timeLeft = 180;
+                    updateTimerDisplay();
+                    timerEl.style.color = '';
+                }
+
+                pathAndQuestions = generateRandomPathAndQuestions();
+                generateMazeData();
+                renderMaze();
+
+                const [startR, startC] = pathAndQuestions[0].position;
+                const startPanel = document.querySelector(`.panel[data-row='${startR}'][data-col='${startC}']`);
+                if (startPanel) {
+                    startPanel.classList.add('current', 'cleared', 'expression-panel');
+                    startPanel.textContent = pathAndQuestions[0].question;
+                }
+            }
+
+            function generateMazeData() {
+                mazeData = Array.from({ length: gridSize }, () => Array(gridSize).fill(null));
+                const usedNumbers = new Set(pathAndQuestions.map(p => p.answer).filter(a => a !== null));
+
+                for (let r = 0; r < gridSize; r++) {
+                    for (let c = 0; c < gridSize; c++) {
+                        let num;
+                        do {
+                            num = Math.floor(Math.random() * 81) + 1;
+                        } while (usedNumbers.has(num));
+                        mazeData[r][c] = { value: num, isPath: false };
+                        usedNumbers.add(num);
+                    }
+                }
+
+                pathAndQuestions.forEach((step) => {
+                    if (step.nextPosition) {
+                        const [nextR, nextC] = step.nextPosition;
+                        mazeData[nextR][nextC] = { value: step.answer, isPath: true };
+                    }
+                });
+            }
+
+            function renderMaze() {
+                for (let r = 0; r < gridSize; r++) {
+                    for (let c = 0; c < gridSize; c++) {
+                        const panel = document.createElement('div');
+                        panel.classList.add('panel');
+                        panel.dataset.row = r;
+                        panel.dataset.col = c;
+                        if (r === 0 && c === 0) {
+                            panel.textContent = "🏆";
+                        } else {
+                            panel.textContent = mazeData[r][c].value;
+                        }
+                        panel.addEventListener('click', handlePanelClick);
+                        mazeContainer.appendChild(panel);
+                    }
+                }
+            }
+
+            function handlePanelClick(event) {
+                if (currentStep >= pathAndQuestions.length - 1) return;
+
+                const clickedPanel = event.currentTarget;
+                const row = parseInt(clickedPanel.dataset.row);
+                const col = parseInt(clickedPanel.dataset.col);
+
+                const currentPath = pathAndQuestions[currentStep];
+                const [nextRow, nextCol] = currentPath.nextPosition;
+
+                if (row === nextRow && col === nextCol) {
+                    // Correct Move
+                    playSound('correct');
+                    const previousPanel = document.querySelector('.panel.current');
+                    if (previousPanel) {
+                        previousPanel.classList.remove('current');
+                    }
+
+                    if (!isTimerRunning) {
+                        startTimer();
+                    }
+
+                    score++;
+                    messageEl.textContent = '+1 点';
+                    messageEl.className = 'text-base font-extrabold text-emerald-600 transition-all scale-110';
+                    setTimeout(() => messageEl.classList.remove('scale-110'), 200);
+
+                    clickedPanel.classList.add('cleared', 'current', 'expression-panel');
+                    currentStep++;
+                    const newPath = pathAndQuestions[currentStep];
+                    clickedPanel.textContent = newPath.question;
+
+                    // Reached Goal
+                    if (newPath.answer === null) {
+                        playSound('goal');
+                        confetti({
+                            particleCount: 80,
+                            spread: 70,
+                            origin: { y: 0.6 }
+                        });
+
+                        score += 10;
+                        messageEl.textContent = '+10 点 ボーナス！';
+                        messageEl.className = 'text-base font-extrabold text-amber-500 transition-all scale-125';
+                        clickedPanel.textContent = '🏆';
+                        updateScoreDisplay();
+                        mazeContainer.style.pointerEvents = 'none';
+
+                        animateTimeBonus();
+                        return;
+                    }
+                    updateScoreDisplay();
+
+                } else {
+                    // Wrong Move
+                    playSound('wrong');
+                    score -= 5;
+                    if (score < 0) score = 0;
+                    updateScoreDisplay();
+                    messageEl.textContent = '-5 点';
+                    messageEl.className = 'text-base font-extrabold text-rose-600 transition-all scale-110';
+
+                    clickedPanel.classList.add('shake');
+                    setTimeout(() => {
+                        clickedPanel.classList.remove('shake');
+                    }, 400);
+                }
+            }
+
+            function updateScoreDisplay() {
+                scoreEl.textContent = score;
+            }
+
+            function updateStageDisplay() {
+                const gameNumberInStage = (gamesCompleted % 3) + 1;
+                stageInfo.textContent = `第${stageCount}ステージ ${gameNumberInStage}ゲーム`;
+            }
+
+            function updateTimerDisplay() {
+                const minutes = Math.floor(timeLeft / 60);
+                const seconds = ('0' + (timeLeft % 60)).slice(-2);
+                timerEl.textContent = `${minutes}:${seconds}`;
+
+                if (timeLeft <= 10) {
+                    timerEl.style.color = '#ef4444';
+                } else {
+                    timerEl.style.color = '#0284c7';
+                }
+            }
+
+            function startTimer() {
+                isTimerRunning = true;
+                timerId = setInterval(() => {
+                    timeLeft--;
+                    updateTimerDisplay();
+
+                    if (timeLeft <= 0) {
+                        clearInterval(timerId);
+                        gameOver();
+                    }
+                }, 1000);
+            }
+
+            function gameOver() {
+                playSound('gameover');
+                finalScoreWrapper.innerHTML = '';
+                const scoreWrapperClone = document.getElementById('score-wrapper').cloneNode(true);
+                scoreWrapperClone.style.marginTop = '0';
+                finalScoreWrapper.appendChild(scoreWrapperClone);
+                const timesupMainContent = document.getElementById('timesup-main-content');
+                timesupMainContent.appendChild(resetButton);
+
+                timesupOverlay.style.display = 'flex';
+                timesupOverlay.classList.remove('hidden');
+            }
+
+            function animateTimeBonus() {
+                gamesCompleted++;
+
+                if (gamesCompleted > 0 && gamesCompleted % 3 === 0) {
+                    stageCount++;
+                    stageMessage.textContent = `第${stageCount}ステージ`;
+                    stageOverlay.style.display = 'flex';
+                    stageOverlay.classList.remove('pointer-events-none');
+
+                    setTimeout(() => { stageOverlay.style.opacity = '1'; }, 10);
+
+                    setTimeout(() => {
+                        stageOverlay.style.opacity = '0';
+                        setTimeout(() => {
+                            stageOverlay.style.display = 'none';
+                            stageOverlay.classList.add('pointer-events-none');
+                            timeLeft = 180;
+                            updateTimerDisplay();
+                            initGame(false);
+                        }, 500);
+                    }, 2200);
+
+                } else {
+                    const timeBonusEl = document.getElementById('time-bonus-animation');
+                    const goalPanel = document.querySelector(".panel[data-row='0'][data-col='0']");
+                    const timerRect = timerEl.getBoundingClientRect();
+                    const goalRect = goalPanel.getBoundingClientRect();
+                    const containerRect = gameContainer.getBoundingClientRect();
+
+                    const startLeft = (goalRect.left - containerRect.left) + (goalRect.width / 2) - (timeBonusEl.offsetWidth / 2);
+                    const startTop = (goalRect.top - containerRect.top) + (goalRect.height / 2) - (timeBonusEl.offsetHeight / 2);
+
+                    timeBonusEl.style.left = `${startLeft}px`;
+                    timeBonusEl.style.top = `${startTop}px`;
+                    timeBonusEl.style.opacity = '1';
+
+                    const endLeft = (timerRect.left - containerRect.left) + (timerRect.width / 2) - (timeBonusEl.offsetWidth / 2);
+                    const endTop = (timerRect.top - containerRect.top) + (timerRect.height / 2) - (timeBonusEl.offsetHeight / 2);
+
+                    setTimeout(() => {
+                        timeBonusEl.style.left = `${endLeft}px`;
+                        timeBonusEl.style.top = `${endTop}px`;
+                        timeBonusEl.style.opacity = '0';
+                    }, 50);
+
+                    setTimeout(() => {
+                        timeLeft += 15;
+                        updateTimerDisplay();
+                        timerEl.classList.add('flash');
+                        setTimeout(() => timerEl.classList.remove('flash'), 600);
+
+                        setTimeout(() => {
+                            initGame(false);
+                        }, 900);
+                    }, 750);
+                }
+            }
+
+            resetButton.addEventListener('click', () => initGame(true));
+
+            screenshotButton.addEventListener('click', () => {
+                timesupOverlay.style.visibility = 'hidden';
+
+                html2canvas(gameContainer, {
+                    backgroundColor: '#e0f2fe',
+                    scale: 2
+                }).then(canvas => {
+                    const link = document.createElement('a');
+                    link.download = 'kakezan-maze-result.png';
+                    link.href = canvas.toDataURL("image/png");
+                    link.click();
+                    timesupOverlay.style.visibility = 'visible';
+                });
+            });
+        });
+    </script>
+</body>
+</html>
